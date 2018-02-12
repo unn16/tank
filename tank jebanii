@@ -1,0 +1,195 @@
+from tkinter import Tk, Canvas, mainloop, NW
+from PIL import Image, ImageTk
+
+# размер карты в пикселях
+window_width = 600
+window_height = 600
+
+# карта
+game_map = [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+]
+
+# размеры блока
+block_width = window_width // 12
+block_height = window_height // 12
+
+# создаем холст
+tk = Tk()
+c = Canvas(tk, width=window_width, height=window_height, bg='white')
+c.pack()
+
+# картинки со стеной и травой
+brick = ImageTk.PhotoImage((Image.open("images/brick.jpg").resize((block_width, block_height))))
+grass = ImageTk.PhotoImage((Image.open("images/grass.jpg").resize((block_width, block_height))))
+
+# рисуем карту
+for i in range(12):
+    for j in range(12):
+        if game_map[i][j] == 0:
+            c.create_image(i * block_width, j * block_height, image=grass, anchor=NW)
+        if game_map[i][j] == 1:
+            c.create_image(i * block_width, j * block_height, image=brick, anchor=NW)
+
+# картинка с игроком
+images = {
+    "brick": ImageTk.PhotoImage(Image.open("images/brick.jpg").resize((block_width, block_height))),
+    "grass": ImageTk.PhotoImage(Image.open("images/grass.jpg").resize((block_width, block_height))),
+    "up": ImageTk.PhotoImage((Image.open("images/tank.gif").convert('RGBA').resize((block_width, block_height)))),
+    "down": ImageTk.PhotoImage(
+        (Image.open("images/tank.gif").convert('RGBA').resize((block_width, block_height)).rotate(180))),
+    "left": ImageTk.PhotoImage(
+        (Image.open("images/tank.gif").convert('RGBA').resize((block_width, block_height)).rotate(90))),
+    "right": ImageTk.PhotoImage(
+        (Image.open("images/tank.gif").convert('RGBA').resize((block_width, block_height)).rotate(270)))
+}
+
+bullet_image_up = ImageTk.PhotoImage(
+    (Image.open("images/bullet.gif").convert('RGBA').resize((25, 25))))
+bullet_image_left = ImageTk.PhotoImage(
+    Image.open("images/bullet.gif").convert('RGBA').resize((25, 25)).rotate(90))
+bullet_image_down = ImageTk.PhotoImage(
+    (Image.open("images/bullet.gif").convert('RGBA').resize((25, 25)).rotate(180)))
+bullet_image_right = ImageTk.PhotoImage(
+    (Image.open("images/bullet.gif").convert('RGBA').resize((25, 25))).rotate(270))
+
+# координаты игрока
+x = 6
+y = 6
+
+# создаем игрока
+tank = {
+        "up": c.create_image(x * block_width, y * block_height, image=images['up'], anchor=NW, state='normal'),
+        "down": c.create_image(x * block_width, y * block_height, image=images['down'], anchor=NW, state='hidden'),
+        "left": c.create_image(x * block_width, y * block_height, image=images['left'], anchor=NW, state='hidden'),
+        "right": c.create_image(x * block_width, y * block_height, image=images['right'], anchor=NW, state='hidden')
+    }
+
+# проверка доступности клетки
+def is_available(i, j):
+    if i < 0 or i >= 12 or j < 0 or j >= 12:
+        return False
+    if game_map[i][j] == 1:
+        return False
+    return True
+
+
+bullets = []
+
+
+def moveBullets():
+    global bullets
+    aliveBullets = []
+    for bullet in bullets:
+        x, y = c.coords(bullet['object'])
+        mx, my = int(x // block_width), int(y // block_height)
+        if bullet['side'] == 'LEFT':
+            c.move(bullet['object'], -5, 0)
+        if bullet['side'] == 'RIGHT':
+            c.move(bullet['object'], 5, 0)
+        if bullet['side'] == 'UP':
+            c.move(bullet['object'], 0, -5)
+        if bullet['side'] == 'DOWN':
+            c.move(bullet['object'], 0, 5)
+        if mx < 0 or my < 0 or mx>=12 or my >=12:
+            c.delete(bullet['object'])
+            continue
+        if game_map[mx][my] == 1 and bullet['side'] in ['LEFT', 'UP']:
+            c.delete(bullet['object'])
+            continue
+        if game_map[mx][my] == 1 and bullet['side'] == 'DOWN':
+            c.delete(bullet['object'])
+            continue
+        if game_map[mx][my] == 1 and bullet['side'] == 'RIGHT':
+            c.delete(bullet['object'])
+            continue
+
+        aliveBullets.append(bullet)
+    bullets = aliveBullets
+    c.after(20, moveBullets)
+
+
+naprav = 'a'
+
+
+# нажатие клавиши
+def keyDown(key):
+    global x, y, naprav
+    if key.char == 'a':
+        c.itemconfigure(tank['left'], state='normal')
+        c.itemconfigure(tank['up'], state='hidden')
+        c.itemconfigure(tank['down'], state='hidden')
+        c.itemconfigure(tank['right'], state='hidden')
+        naprav = 'a'
+        if is_available(x - 1, y):
+            x -= 1
+    if key.char == 'd':
+        c.itemconfigure(tank['left'], state='hidden')
+        c.itemconfigure(tank['up'], state='hidden')
+        c.itemconfigure(tank['down'], state='hidden')
+        c.itemconfigure(tank['right'], state='normal')
+        naprav = 'd'
+        if is_available(x + 1, y):
+            x += 1
+    if key.char == 'w':
+        c.itemconfigure(tank['left'], state='hidden')
+        c.itemconfigure(tank['up'], state='normal')
+        c.itemconfigure(tank['down'], state='hidden')
+        c.itemconfigure(tank['right'], state='hidden')
+        naprav = 'w'
+        if is_available(x, y - 1):
+            y -= 1
+    if key.char == 's':
+        c.itemconfigure(tank['left'], state='hidden')
+        c.itemconfigure(tank['up'], state='hidden')
+        c.itemconfigure(tank['down'], state='normal')
+        c.itemconfigure(tank['right'], state='hidden')
+        naprav = 's'
+        if is_available(x, y + 1):
+            y += 1
+    if key.char == ' ':
+        if naprav == 'a':
+            bullet = {
+                "object": c.create_image(x * block_width, y * block_height+ block_height//2, image=bullet_image_left),
+                "side": "LEFT"
+            }
+            bullets.append(bullet)
+        if naprav == 'd':
+            bullet = {
+                "object": c.create_image(x * block_width + block_width, y * block_height+ block_height//2, image=bullet_image_right),
+                "side": "RIGHT"
+            }
+            bullets.append(bullet)
+        if naprav == 'w':
+            bullet = {
+                "object": c.create_image(x * block_width + block_width//2, y * block_height, image=bullet_image_up),
+                "side": "UP"
+            }
+            bullets.append(bullet)
+        if naprav == 's':
+            bullet = {
+                "object": c.create_image(x * block_width + block_width//2, y * block_height + block_height, image=bullet_image_down),
+                "side": "DOWN"
+            }
+            bullets.append(bullet)
+    c.coords(tank['up'], x * block_width, y * block_height)
+    c.coords(tank['left'], x * block_width, y * block_height)
+    c.coords(tank['down'], x * block_width, y * block_height)
+    c.coords(tank['right'], x * block_width, y * block_height)
+
+
+# при нажатии любой клавишы вызываем keyDown
+tk.bind("<KeyPress>", keyDown)
+c.after(50, moveBullets)
+mainloop()
